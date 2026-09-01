@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -141,5 +143,16 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=5),
+}
+
+
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
+CELERY_TIMEZONE = TIME_ZONE
+
+CELERY_BEAT_SCHEDULE = {
+    "check-overdue-borrowings": {
+        "task": "borrowings.tasks.check_overdue_borrowings",
+        "schedule": crontab(minute="*"),
+    },
 }
 
