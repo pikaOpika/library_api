@@ -8,6 +8,8 @@ from borrowings.models import Borrowing
 from books.serializers import BookSerializer
 from books.models import Book
 
+from notifications.telegram import send_telegram_message
+
 class BorrowingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrowing
@@ -32,4 +34,8 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         book = validated_data.get("book")
         with transaction.atomic():
             Book.objects.filter(pk=book.id).update(inventory=F("inventory") - 1)
-            return super().create(validated_data)
+            borrowing = super().create(validated_data)
+        send_telegram_message(
+            f"User {validated_data['user']} borrowed book {book.title} expected return date {validated_data.get('expected_return_date')}"
+        )
+        return borrowing
