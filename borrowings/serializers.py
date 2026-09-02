@@ -4,20 +4,22 @@ from django.db import transaction
 from rest_framework import serializers
 
 from borrowings.models import Borrowing
-
 from books.serializers import BookSerializer
 from books.models import Book
 
 from notifications.telegram import send_telegram_message
+from payments.stripe_service import create_stripe_session
+from payments.serializers import PaymentSerializer
 
 class BorrowingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrowing
-        fields = ["id", "borrow_date", "expected_return_date", "actual_return_date", "book", "user"]
+        fields = ["id", "borrow_date", "expected_return_date", "actual_return_date", "book", "user", "payments"]
 
 
 class BorrowingDetailSerializer(BorrowingSerializer):
     book = BookSerializer(read_only=True)
+    payments = PaymentSerializer(read_only=True, many=True)
 
 
 class BorrowingCreateSerializer(serializers.ModelSerializer):
@@ -35,6 +37,10 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             Book.objects.filter(pk=book.id).update(inventory=F("inventory") - 1)
             borrowing = super().create(validated_data)
+        create_stripe_session(
+            borrowing=borrowing,
+            request=self.context["request"]
+        )
         send_telegram_message(
             f"User {validated_data['user']} borrowed book {book.title} expected return date {validated_data.get('expected_return_date')}"
         )
