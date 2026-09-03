@@ -9,6 +9,8 @@ from rest_framework.permissions import AllowAny
 from payments.serializers import PaymentSerializer
 from payments.models import Payment
 
+from notifications.telegram import send_telegram_message
+
 class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
@@ -27,11 +29,16 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
             session = stripe.checkout.Session.retrieve(session_id)
             payment_status = session.payment_status
             if payment_status == "paid":
-                Payment.objects.filter(session_id=session_id).update(status=Payment.Status.PAID)
+                payment = Payment.objects.get(session_id=session_id)
+                payment.status = Payment.Status.PAID
+                payment.save()
+                send_telegram_message(
+                    f'Payment received: ${payment.money_to_pay} from {payment.borrowing.user.email} for "{payment.borrowing.book.title}" ({payment.type})'
+                )
                 return Response({"status": payment_status})
             return Response({"status": "payment was unsuccessful"}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.StripeError as exc:
-            return Response({"status": f"Invalid payment session"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"status": "Invalid payment session"}, status=status.HTTP_400_BAD_REQUEST)
         
     @action(detail=False, methods=["GET"], permission_classes=[AllowAny,])
     def cancel(self, request):
