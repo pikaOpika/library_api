@@ -10,6 +10,7 @@ from books.models import Book
 from notifications.telegram import send_telegram_message
 from payments.stripe_service import create_stripe_session
 from payments.serializers import PaymentSerializer
+from payments.models import Payment
 
 class BorrowingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -37,11 +38,16 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             Book.objects.filter(pk=book.id).update(inventory=F("inventory") - 1)
             borrowing = super().create(validated_data)
+        count_days = (borrowing.expected_return_date - borrowing.borrow_date).days
+        amount = count_days * borrowing.book.daily_fee if count_days else borrowing.book.daily_fee
         create_stripe_session(
             borrowing=borrowing,
-            request=self.context["request"]
+            request=self.context["request"],
+            amount=amount,
+            payment_type=Payment.Type.PAYMENT
         )
         send_telegram_message(
             f"User {validated_data['user']} borrowed book {book.title} expected return date {validated_data.get('expected_return_date')}"
         )
         return borrowing
+
