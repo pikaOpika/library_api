@@ -7,6 +7,7 @@ from rest_framework import status
 
 from django.db.models import F
 from django.db import transaction
+from django.conf import settings
 
 from datetime import date
 
@@ -18,6 +19,8 @@ from borrowings.models import Borrowing
 
 from books.models import Book
 
+from payments.stripe_service import create_stripe_session
+from payments.models import Payment
 
 class BorrowingViewSet(
     ListModelMixin, RetrieveModelMixin,
@@ -57,12 +60,23 @@ class BorrowingViewSet(
                 {"detail": "You already returned book"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
         with transaction.atomic():
             Borrowing.objects.filter(pk=borrowing.pk).update(
                 actual_return_date = date.today(),
             )
             Book.objects.filter(pk=borrowing.book.id).update(
                 inventory=F("inventory") + 1
+            )
+
+        if date.today() > borrowing.expected_return_date:
+            days = (date.today() - borrowing.expected_return_date).days
+            money_to_pay = days * borrowing.book.daily_fee * settings.FINE_MULTIPLIER
+            create_stripe_session(
+                borrowing=borrowing,
+                request=self.request,
+                amount=money_to_pay,
+                payment_type=Payment.Type.FINE
             )
         return Response({"detail": "You returned book"})
 

@@ -11,9 +11,8 @@ load_dotenv()
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
-def create_stripe_session(borrowing: Borrowing, request):
-    count_days = (borrowing.expected_return_date - borrowing.borrow_date).days
-    amount = count_days * borrowing.book.daily_fee if count_days else borrowing.book.daily_fee
+def create_stripe_session(borrowing: Borrowing, request, amount, payment_type):
+    
     success_path = reverse("payments:payment-success")
     cancel_path = reverse("payments:payment-cancel")
     session = stripe.checkout.Session.create(
@@ -33,6 +32,7 @@ def create_stripe_session(borrowing: Borrowing, request):
     )
     return Payment.objects.create(
         borrowing=borrowing,
+        type=payment_type,
         session_url=session.url,
         session_id=session.id,
         money_to_pay=amount
