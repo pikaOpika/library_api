@@ -33,6 +33,18 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This book is out of stock")
         return value
 
+    def validate(self, attrs):
+        has_pending_payments = Payment.objects.filter(
+            status=Payment.Status.PENDING,
+            borrowing__user=self.context["request"].user
+        ).exists()
+        if has_pending_payments:
+            raise serializers.ValidationError(
+                "You have a pending payment. "
+                "Please complete it before borrowing a new book."
+            )
+        return super().validate(attrs)
+
     def create(self, validated_data):
         book = validated_data.get("book")
         with transaction.atomic():
