@@ -1,4 +1,5 @@
 import stripe
+import logging
 from rest_framework import viewsets
 from rest_framework import mixins
 from rest_framework import status
@@ -11,10 +12,13 @@ from payments.models import Payment
 
 from notifications.telegram import send_telegram_message
 
+
+logger = logging.getLogger(__name__)
+
+
 class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-
 
     def get_queryset(self):
         queryset = self.queryset.all()
@@ -30,6 +34,8 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
             payment_status = session.payment_status
             if payment_status == "paid":
                 payment = Payment.objects.get(session_id=session_id)
+                if payment.status == Payment.Status.PAID:
+                    return Response({"detail": "You already paid"})
                 payment.status = Payment.Status.PAID
                 payment.save()
                 send_telegram_message(
@@ -38,7 +44,10 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
                 return Response({"status": payment_status})
             return Response({"status": "payment was unsuccessful"}, status=status.HTTP_400_BAD_REQUEST)
         except stripe.StripeError as exc:
+            logger.error("Stripe got an error %s", exc)
             return Response({"status": "Invalid payment session"}, status=status.HTTP_400_BAD_REQUEST)
+        except Payment.DoesNotExist:
+            return Response({"detail": "Couldn't find your payment with this session_id"}, status=status.HTTP_404_NOT_FOUND)
         
     @action(detail=False, methods=["GET"], permission_classes=[AllowAny,])
     def cancel(self, request):
