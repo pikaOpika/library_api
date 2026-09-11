@@ -150,11 +150,18 @@ CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
 CELERY_TIMEZONE = TIME_ZONE
 
 CELERY_BEAT_SCHEDULE = {
-    "check-overdue-borrowings": {
+    "check_overdue_borrowings": {
         "task": "borrowings.tasks.check_overdue_borrowings",
         "schedule": crontab(minute="*"),
     },
+    "check_expired_payments": {
+        "task": "payments.tasks.check_expired_payments",
+        "schedule": crontab(minute="*"),
+    }
 }
 
 FINE_MULTIPLIER = 2
+
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 

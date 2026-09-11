@@ -1,15 +1,19 @@
 import os
 import stripe
-from dotenv import load_dotenv
 
 from django.urls import reverse
+from django.conf import settings
 
 from borrowings.models import Borrowing
 from payments.models import Payment
 
-load_dotenv()
 
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def get_stripe_session(session_id):
+    return stripe.checkout.Session.retrieve(session_id)
+
 
 def create_stripe_session(borrowing: Borrowing, request, amount, payment_type):
     

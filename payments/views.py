@@ -7,6 +7,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
+from payments.stripe_service import get_stripe_session
+
 from payments.serializers import PaymentSerializer
 from payments.models import Payment
 
@@ -30,7 +32,7 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
     def success(self, request):
         session_id = request.query_params.get("session_id")
         try:
-            session = stripe.checkout.Session.retrieve(session_id)
+            session = get_stripe_session(session_id)
             payment_status = session.payment_status
             if payment_status == "paid":
                 payment = Payment.objects.get(session_id=session_id)
