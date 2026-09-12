@@ -7,8 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
-from payments.stripe_service import get_stripe_session
-
+from payments.stripe_service import get_stripe_session, update_stripe_session
 from payments.serializers import PaymentSerializer
 from payments.models import Payment
 
@@ -54,3 +53,14 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
     @action(detail=False, methods=["GET"], permission_classes=[AllowAny,])
     def cancel(self, request):
         return Response({"status": "You cancelled payment you can continue later but remember link will expire after 24 hours"})
+
+    @action(detail=True, methods=["POST"])
+    def renew(self, request, pk):
+        payment = self.get_object()
+        if payment.status != Payment.Status.EXPIRED:
+            return Response({"detail": "Only expired payments can be renewed."}, status=status.HTTP_400_BAD_REQUEST)
+        payment = update_stripe_session(payment, request)
+        return Response({
+            "detail": "Payment renewed.",
+            "session_url": payment.session_url,
+        })
