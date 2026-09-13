@@ -7,22 +7,36 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Book',
+            name="Book",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=100)),
-                ('author', models.CharField(max_length=100)),
-                ('cover', models.CharField(choices=[('H', 'Hard'), ('S', 'Soft')], default='S', max_length=1)),
-                ('inventory', models.PositiveIntegerField()),
-                ('daily_fee', models.DecimalField(decimal_places=2, max_digits=5)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=100)),
+                ("author", models.CharField(max_length=100)),
+                (
+                    "cover",
+                    models.CharField(
+                        choices=[("H", "Hard"), ("S", "Soft")],
+                        default="S",
+                        max_length=1,
+                    ),
+                ),
+                ("inventory", models.PositiveIntegerField()),
+                ("daily_fee", models.DecimalField(decimal_places=2, max_digits=5)),
             ],
             options={
-                'ordering': ['title'],
+                "ordering": ["title"],
             },
         ),
     ]

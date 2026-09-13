@@ -3,19 +3,32 @@ from django.db import transaction
 
 from rest_framework import serializers
 
+from datetime import date
+
 from borrowings.models import Borrowing
 from books.serializers import BookSerializer
 from books.models import Book
 
 from notifications.telegram import send_telegram_message
 from payments.stripe_service import create_stripe_session
-from payments.serializers import PaymentSerializer
+from payments.serializers import PaymentSerializer, PaymentListSerializer
 from payments.models import Payment
 
+
 class BorrowingSerializer(serializers.ModelSerializer):
+    payments = PaymentListSerializer(read_only=True, many=True)
+
     class Meta:
         model = Borrowing
-        fields = ["id", "borrow_date", "expected_return_date", "actual_return_date", "book", "user", "payments"]
+        fields = [
+            "id",
+            "borrow_date",
+            "expected_return_date",
+            "actual_return_date",
+            "book",
+            "user",
+            "payments",
+        ]
 
 
 class BorrowingDetailSerializer(BorrowingSerializer):
@@ -26,12 +39,31 @@ class BorrowingDetailSerializer(BorrowingSerializer):
 class BorrowingCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrowing
-        fields = ["expected_return_date", "book"]
+        fields = ["id", "expected_return_date", "book"]
 
     def validate_book(self, value):
         if value.inventory == 0:
             raise serializers.ValidationError("This book is out of stock")
         return value
+
+    def validate_expected_return_date(self, value):
+        if value < date.today():
+            raise serializers.ValidationError(
+                "Expected return date cannot be in the past."
+            )
+        return value
+
+    def validate(self, attrs):
+        has_not_paid = Payment.objects.filter(
+            status__in=[Payment.Status.PENDING, Payment.Status.EXPIRED],
+            borrowing__user=self.context["request"].user,
+        ).exists()
+        if has_not_paid:
+            raise serializers.ValidationError(
+                "You have an unpaid payment. "
+                "Please complete it before borrowing a new book."
+            )
+        return super().validate(attrs)
 
     def create(self, validated_data):
         book = validated_data.get("book")
@@ -39,15 +71,19 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
             Book.objects.filter(pk=book.id).update(inventory=F("inventory") - 1)
             borrowing = super().create(validated_data)
         count_days = (borrowing.expected_return_date - borrowing.borrow_date).days
-        amount = count_days * borrowing.book.daily_fee if count_days else borrowing.book.daily_fee
+        amount = (
+            count_days * borrowing.book.daily_fee
+            if count_days
+            else borrowing.book.daily_fee
+        )
         create_stripe_session(
             borrowing=borrowing,
             request=self.context["request"],
             amount=amount,
-            payment_type=Payment.Type.PAYMENT
+            payment_type=Payment.Type.PAYMENT,
         )
         send_telegram_message(
-            f"User {validated_data['user']} borrowed book {book.title} expected return date {validated_data.get('expected_return_date')}"
+            f"User {validated_data['user']} borrowed book {book.title} "
+            f"expected return date {validated_data.get('expected_return_date')}"
         )
         return borrowing
-

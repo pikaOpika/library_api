@@ -10,23 +10,58 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('books', '0001_initial'),
+        ("books", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Borrowing',
+            name="Borrowing",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('borrow_date', models.DateField()),
-                ('expected_return_date', models.DateField()),
-                ('actual_return_date', models.DateField(blank=True, null=True)),
-                ('book', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='borrowings', to='books.book')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='borrowings', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("borrow_date", models.DateField()),
+                ("expected_return_date", models.DateField()),
+                ("actual_return_date", models.DateField(blank=True, null=True)),
+                (
+                    "book",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="borrowings",
+                        to="books.book",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="borrowings",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'constraints': [models.CheckConstraint(condition=models.Q(('borrow_date__lte', models.F('expected_return_date'))), name='expected_return_after_borrow'), models.CheckConstraint(condition=models.Q(('borrow_date__lte', models.F('actual_return_date'))), name='actual_return_after_borrow')],
+                "constraints": [
+                    models.CheckConstraint(
+                        condition=models.Q(
+                            ("borrow_date__lte", models.F("expected_return_date"))
+                        ),
+                        name="expected_return_after_borrow",
+                    ),
+                    models.CheckConstraint(
+                        condition=models.Q(
+                            ("borrow_date__lte", models.F("actual_return_date"))
+                        ),
+                        name="actual_return_after_borrow",
+                    ),
+                ],
             },
         ),
     ]

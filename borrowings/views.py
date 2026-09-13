@@ -12,8 +12,9 @@ from django.conf import settings
 from datetime import date
 
 from borrowings.serializers import (
-    BorrowingSerializer, BorrowingDetailSerializer,
-    BorrowingCreateSerializer
+    BorrowingSerializer,
+    BorrowingDetailSerializer,
+    BorrowingCreateSerializer,
 )
 from borrowings.models import Borrowing
 
@@ -22,9 +23,9 @@ from books.models import Book
 from payments.stripe_service import create_stripe_session
 from payments.models import Payment
 
+
 class BorrowingViewSet(
-    ListModelMixin, RetrieveModelMixin,
-    CreateModelMixin, GenericViewSet
+    ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet
 ):
     queryset = Borrowing.objects.all()
 
@@ -36,7 +37,9 @@ class BorrowingViewSet(
         return BorrowingSerializer
 
     def get_queryset(self):
-        queryset = self.queryset.all()
+        queryset = self.queryset.select_related("user", "book").prefetch_related(
+            "payments"
+        )
         is_active = self.request.query_params.get("is_active")
         user_id = self.request.query_params.get("user_id")
 
@@ -58,12 +61,12 @@ class BorrowingViewSet(
         if borrowing.actual_return_date is not None:
             return Response(
                 {"detail": "You already returned book"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         with transaction.atomic():
             Borrowing.objects.filter(pk=borrowing.pk).update(
-                actual_return_date = date.today(),
+                actual_return_date=date.today(),
             )
             Book.objects.filter(pk=borrowing.book.id).update(
                 inventory=F("inventory") + 1
@@ -76,7 +79,7 @@ class BorrowingViewSet(
                 borrowing=borrowing,
                 request=self.request,
                 amount=money_to_pay,
-                payment_type=Payment.Type.FINE
+                payment_type=Payment.Type.FINE,
             )
         return Response({"detail": "You returned book"})
 

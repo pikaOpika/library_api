@@ -26,7 +26,6 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email=email, password=password, **extra_fields)
 
 
-
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     username = None
@@ -36,4 +35,3 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
 
     objects = CustomUserManager()
-

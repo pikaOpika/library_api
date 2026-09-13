@@ -6,13 +6,17 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('books', '0001_initial'),
+        ("books", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='book',
-            name='cover',
-            field=models.CharField(choices=[('HARD', 'Hard'), ('SOFT', 'Soft')], default='SOFT', max_length=4),
+            model_name="book",
+            name="cover",
+            field=models.CharField(
+                choices=[("HARD", "Hard"), ("SOFT", "Soft")],
+                default="SOFT",
+                max_length=4,
+            ),
         ),
     ]
