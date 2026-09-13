@@ -20,4 +20,3 @@ def check_expired_payments():
         if session.status == "expired":
             payment.status = Payment.Status.EXPIRED
             payment.save(update_fields=["status"])
-

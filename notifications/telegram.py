@@ -3,18 +3,15 @@ import os
 import logging
 from dotenv import load_dotenv
 
-
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+
 def send_telegram_message(text):
-    
+
     token = os.environ.get("BOT_TOKEN")
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": os.environ.get("TELEGRAM_CHAT_ID"),
-        "text": text
-    }
+    payload = {"chat_id": os.environ.get("TELEGRAM_CHAT_ID"), "text": text}
     try:
         res = requests.post(url, json=payload, timeout=5)
         if res.status_code == 200:

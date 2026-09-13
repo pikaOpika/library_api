@@ -9,20 +9,49 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('borrowings', '0002_alter_borrowing_borrow_date'),
+        ("borrowings", "0002_alter_borrowing_borrow_date"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Payment',
+            name="Payment",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status', models.CharField(choices=[('Pe', 'Pending'), ('Pa', 'Paid')], default='Pe', max_length=2)),
-                ('type', models.CharField(choices=[('P', 'Payment'), ('F', 'Fine')], default='P', max_length=1)),
-                ('session_url', models.URLField(blank=True, max_length=500)),
-                ('session_id', models.CharField(blank=True, max_length=255)),
-                ('money_to_pay', models.DecimalField(decimal_places=2, max_digits=7)),
-                ('borrowing', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='payments', to='borrowings.borrowing')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[("Pe", "Pending"), ("Pa", "Paid")],
+                        default="Pe",
+                        max_length=2,
+                    ),
+                ),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[("P", "Payment"), ("F", "Fine")],
+                        default="P",
+                        max_length=1,
+                    ),
+                ),
+                ("session_url", models.URLField(blank=True, max_length=500)),
+                ("session_id", models.CharField(blank=True, max_length=255)),
+                ("money_to_pay", models.DecimalField(decimal_places=2, max_digits=7)),
+                (
+                    "borrowing",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="payments",
+                        to="borrowings.borrowing",
+                    ),
+                ),
             ],
         ),
     ]

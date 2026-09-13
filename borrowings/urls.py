@@ -10,6 +10,4 @@ router = routers.DefaultRouter()
 router.register("borrowings", BorrowingViewSet)
 
 
-urlpatterns = [
-    path("", include(router.urls))
-]
+urlpatterns = [path("", include(router.urls))]

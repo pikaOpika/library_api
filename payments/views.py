@@ -13,11 +13,12 @@ from payments.models import Payment
 
 from notifications.telegram import send_telegram_message
 
-
 logger = logging.getLogger(__name__)
 
 
-class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+class PaymentViewSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
 
@@ -27,7 +28,13 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
             return queryset
         return queryset.filter(borrowing__user=self.request.user)
 
-    @action(detail=False, methods=["GET"], permission_classes=[AllowAny,])
+    @action(
+        detail=False,
+        methods=["GET"],
+        permission_classes=[
+            AllowAny,
+        ],
+    )
     def success(self, request):
         session_id = request.query_params.get("session_id")
         try:
@@ -40,27 +47,54 @@ class PaymentViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
                 payment.status = Payment.Status.PAID
                 payment.save()
                 send_telegram_message(
-                    f'Payment received: ${payment.money_to_pay} from {payment.borrowing.user.email} for "{payment.borrowing.book.title}" ({payment.type})'
+                    f"Payment received: ${payment.money_to_pay} from "
+                    f"{payment.borrowing.user.email} for "
+                    f'"{payment.borrowing.book.title}" ({payment.type})'
                 )
                 return Response({"status": payment_status})
-            return Response({"status": "payment was unsuccessful"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"status": "payment was unsuccessful"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except stripe.StripeError as exc:
             logger.error("Stripe got an error %s", exc)
-            return Response({"status": "Invalid payment session"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"status": "Invalid payment session"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Payment.DoesNotExist:
-            return Response({"detail": "Couldn't find your payment with this session_id"}, status=status.HTTP_404_NOT_FOUND)
-        
-    @action(detail=False, methods=["GET"], permission_classes=[AllowAny,])
+            return Response(
+                {"detail": "Couldn't find your payment with this session_id"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @action(
+        detail=False,
+        methods=["GET"],
+        permission_classes=[
+            AllowAny,
+        ],
+    )
     def cancel(self, request):
-        return Response({"status": "You cancelled payment you can continue later but remember link will expire after 24 hours"})
+        return Response(
+            {
+                "status": "You cancelled payment you can continue later "
+                "but remember link will expire after 24 hours"
+            }
+        )
 
     @action(detail=True, methods=["POST"])
     def renew(self, request, pk):
         payment = self.get_object()
         if payment.status != Payment.Status.EXPIRED:
-            return Response({"detail": "Only expired payments can be renewed."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Only expired payments can be renewed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         payment = update_stripe_session(payment, request)
-        return Response({
-            "detail": "Payment renewed.",
-            "session_url": payment.session_url,
-        })
+        return Response(
+            {
+                "detail": "Payment renewed.",
+                "session_url": payment.session_url,
+            }
+        )

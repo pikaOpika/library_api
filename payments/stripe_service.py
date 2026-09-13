@@ -6,7 +6,6 @@ from django.conf import settings
 from borrowings.models import Borrowing
 from payments.models import Payment
 
-
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
@@ -29,7 +28,8 @@ def build_stripe_session(borrowing: Borrowing, request, amount):
             }
         ],
         mode="payment",
-        success_url=request.build_absolute_uri(success_path) + "?session_id={CHECKOUT_SESSION_ID}",
+        success_url=request.build_absolute_uri(success_path)
+        + "?session_id={CHECKOUT_SESSION_ID}",
         cancel_url=request.build_absolute_uri(cancel_path),
     )
     return session
@@ -42,9 +42,8 @@ def create_stripe_session(borrowing: Borrowing, request, amount, payment_type):
         type=payment_type,
         session_url=session.url,
         session_id=session.id,
-        money_to_pay=amount
+        money_to_pay=amount,
     )
-
 
 
 def update_stripe_session(payment, request):
