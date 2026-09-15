@@ -2,6 +2,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 
 from rest_framework.test import APITestCase
+from rest_framework import status
 
 from datetime import date, timedelta
 
@@ -28,12 +29,12 @@ class BorrowingSetUp(APITestCase):
         self.borrowing1 = Borrowing.objects.create(
             expected_return_date=self.expected_return_date,
             book=self.book,
-            user=self.user
+            user=self.user,
         )
         self.borrowing2 = Borrowing.objects.create(
             expected_return_date=self.expected_return_date,
             book=self.book,
-            user=self.admin
+            user=self.admin,
         )
 
 
@@ -41,7 +42,9 @@ class BorrowingVisibilityTests(BorrowingSetUp):
     def test_admin_sees_all_borrowings(self):
         self.client.force_authenticate(self.admin)
         res = self.client.get(reverse("borrowings:borrowing-list"))
-        self.assertEqual({item["id"] for item in res.data}, {self.borrowing1.id, self.borrowing2.id})
+        self.assertEqual(
+            {item["id"] for item in res.data}, {self.borrowing1.id, self.borrowing2.id}
+        )
 
     def test_user_sees_only_own_borrowings(self):
         self.client.force_authenticate(self.user)
@@ -55,18 +58,52 @@ class BorrowingFilterTests(BorrowingSetUp):
             expected_return_date=self.expected_return_date,
             actual_return_date=self.expected_return_date,
             book=self.book,
-            user=self.user
+            user=self.user,
         )
         self.client.force_authenticate(self.user)
-        res = self.client.get(reverse("borrowings:borrowing-list"), {"is_active": "true"})
+        res = self.client.get(
+            reverse("borrowings:borrowing-list"), {"is_active": "true"}
+        )
         self.assertEqual({item["id"] for item in res.data}, {self.borrowing1.id})
-    
+
     def test_filter_user_id_for_admin(self):
         self.client.force_authenticate(self.admin)
-        res = self.client.get(reverse("borrowings:borrowing-list"), {"user_id": self.user.id})
+        res = self.client.get(
+            reverse("borrowings:borrowing-list"), {"user_id": self.user.id}
+        )
         self.assertEqual({item["id"] for item in res.data}, {self.borrowing1.id})
 
     def test_filter_user_id_for_user(self):
         self.client.force_authenticate(self.user)
-        res = self.client.get(reverse("borrowings:borrowing-list"), {"user_id": self.admin.id})
+        res = self.client.get(
+            reverse("borrowings:borrowing-list"), {"user_id": self.admin.id}
+        )
         self.assertEqual({item["id"] for item in res.data}, {self.borrowing1.id})
+
+
+class BorrowingReturnTests(BorrowingSetUp):
+    def return_url(borrowing_id):
+        return reverse(
+            "borrowings:borrowing-borrowing-return", kwargs={"pk": borrowing_id}
+        )
+
+    def test_owner_can_return_book(self):
+        self.client.force_authenticate(self.user)
+        before = self.book.inventory
+        res = self.client.post(self.return_url(self.borrowing1.id))
+        self.book.refresh_from_db()
+        self.borrowing1.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.book.inventory, before + 1)
+        self.assertIsNotNone(self.borrowing1.actual_return_date)
+
+    def test_second_return_is_rejected(self):
+        self.client.force_authenticate(self.user)
+        self.client.post(self.return_url(self.borrowing1.id))
+        res = self.client.post(self.return_url(self.borrowing1.id))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_return_someone_elses_borrowing(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.post(self.return_url(self.borrowing2.id))
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
