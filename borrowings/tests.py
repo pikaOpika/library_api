@@ -6,8 +6,11 @@ from rest_framework import status
 
 from datetime import date, timedelta
 
+from unittest.mock import patch
+
 from books.models import Book
 from borrowings.models import Borrowing
+from payments.models import Payment
 
 
 class BorrowingSetUp(APITestCase):
@@ -36,6 +39,10 @@ class BorrowingSetUp(APITestCase):
             book=self.book,
             user=self.admin,
         )
+        self.payload = {
+            "expected_return_date": self.expected_return_date,
+            "book": self.book.id
+        }
 
 
 class BorrowingVisibilityTests(BorrowingSetUp):
@@ -82,7 +89,7 @@ class BorrowingFilterTests(BorrowingSetUp):
 
 
 class BorrowingReturnTests(BorrowingSetUp):
-    def return_url(borrowing_id):
+    def return_url(self, borrowing_id):
         return reverse(
             "borrowings:borrowing-borrowing-return", kwargs={"pk": borrowing_id}
         )
@@ -107,3 +114,40 @@ class BorrowingReturnTests(BorrowingSetUp):
         self.client.force_authenticate(self.user)
         res = self.client.post(self.return_url(self.borrowing2.id))
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class BorrowingCreateTests(BorrowingSetUp):
+    @patch("borrowings.serializers.send_telegram_message")
+    @patch("borrowings.serializers.create_stripe_session")
+    def test_create_borrowing_decreases_inventory(self, mock_stripe, mock_telegram):
+        self.client.force_authenticate(self.user)
+        inventory_before = self.book.inventory
+        res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.book.refresh_from_db()
+        self.assertEqual(self.book.inventory, inventory_before - 1)
+        borrowing = Borrowing.objects.get(id=res.data["id"])
+        self.assertEqual(borrowing.user, self.user)
+
+    def test_cannot_borrow_book_out_of_stock(self):
+        book = Book.objects.create(
+            title="Test",
+            author="1",
+            cover="SOFT",
+            inventory=0,
+            daily_fee="10.20",
+        )
+        self.payload["book"] = book.id
+        self.client.force_authenticate(self.user)
+        count_before = Borrowing.objects.count()
+        res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Borrowing.objects.count(), count_before)
+
+    def test_cannot_borrow_with_past_return_date(self):
+        self.payload["expected_return_date"] = date.today() - timedelta(days=1)
+        self.client.force_authenticate(self.user)
+        count_before = Borrowing.objects.count()
+        res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Borrowing.objects.count(), count_before)
