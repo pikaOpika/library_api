@@ -41,7 +41,7 @@ class BorrowingSetUp(APITestCase):
         )
         self.payload = {
             "expected_return_date": self.expected_return_date,
-            "book": self.book.id
+            "book": self.book.id,
         }
 
 
@@ -60,7 +60,7 @@ class BorrowingVisibilityTests(BorrowingSetUp):
 
 
 class BorrowingFilterTests(BorrowingSetUp):
-    def test_filter_isactive(self):
+    def test_is_active_filter_returns_only_open_borrowings(self):
         Borrowing.objects.create(
             expected_return_date=self.expected_return_date,
             actual_return_date=self.expected_return_date,
@@ -115,6 +115,33 @@ class BorrowingReturnTests(BorrowingSetUp):
         res = self.client.post(self.return_url(self.borrowing2.id))
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
+    @patch("borrowings.views.create_stripe_session")
+    def test_overdue_return_creates_fine(self, mock_session):
+        borrowing = Borrowing.objects.create(
+            borrow_date=date.today() - timedelta(days=7),
+            expected_return_date=date.today() - timedelta(days=4),
+            book=self.book,
+            user=self.user,
+        )
+        self.client.force_authenticate(self.user)
+        self.client.post(self.return_url(borrowing.id))
+        mock_session.assert_called_once()
+        self.assertEqual(
+            mock_session.call_args.kwargs["payment_type"], Payment.Type.FINE
+        )
+
+    @patch("borrowings.views.create_stripe_session")
+    def test_on_time_return_creates_no_fine(self, mock_session):
+        borrowing = Borrowing.objects.create(
+            borrow_date=date.today() - timedelta(days=3),
+            expected_return_date=date.today(),
+            book=self.book,
+            user=self.user,
+        )
+        self.client.force_authenticate(self.user)
+        self.client.post(self.return_url(borrowing.id))
+        mock_session.assert_not_called()
+
 
 class BorrowingCreateTests(BorrowingSetUp):
     @patch("borrowings.serializers.send_telegram_message")
@@ -151,3 +178,15 @@ class BorrowingCreateTests(BorrowingSetUp):
         res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Borrowing.objects.count(), count_before)
+
+    def test_cannot_borrow_with_pending_payment(self):
+        Payment.objects.create(
+            borrowing=self.borrowing1,
+            type=Payment.Type.PAYMENT,
+            money_to_pay=10,
+        )
+        self.client.force_authenticate(self.user)
+        borrowings_before = Borrowing.objects.count()
+        res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Borrowing.objects.count(), borrowings_before)
