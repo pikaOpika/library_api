@@ -86,3 +86,28 @@ class PaymentRenewTests(PaymentSetUp):
         self.assertEqual(self.payment_user.status, Payment.Status.PENDING)
         self.assertEqual(self.payment_user.session_id, "cs_test_new")
 
+
+class PaymentSuccessTests(PaymentSetUp):
+    @patch("payments.views.send_telegram_message")
+    @patch("payments.views.get_stripe_session")
+    def test_successful_payment_is_marked_paid(self, mock_session, mock_telegram):
+        self.payment_user.session_id = "cs_test_123"
+        self.payment_user.save()
+        mock_session.return_value.payment_status = "paid"
+        res = self.client.get(reverse("payments:payment-success"), {"session_id": "cs_test_123"})
+        self.payment_user.refresh_from_db()
+        mock_telegram.assert_called_once()
+        self.assertEqual(self.payment_user.status, Payment.Status.PAID)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+
+    @patch("payments.views.send_telegram_message")
+    @patch("payments.views.get_stripe_session")
+    def test_repeated_success_does_not_notify_twice(self, mock_session, mock_telegram):
+        self.payment_user.session_id="cs_test_123"
+        self.payment_user.save()
+        mock_session.return_value.payment_status="paid"
+        self.client.get(reverse("payments:payment-success"), {"session_id": "cs_test_123"})
+        res = self.client.get(reverse("payments:payment-success"), {"session_id": "cs_test_123"})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        mock_telegram.assert_called_once()
