@@ -9,3 +9,5 @@ staticfiles/
 .vscode/
 celerybeat-schedule*
 celerybeat.pid
+*.stackdump
+*.coverage
