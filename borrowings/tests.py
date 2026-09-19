@@ -12,6 +12,8 @@ from books.models import Book
 from borrowings.models import Borrowing
 from payments.models import Payment
 
+from borrowings.tasks import check_overdue_borrowings
+
 
 class BorrowingSetUp(APITestCase):
     def setUp(self):
@@ -171,7 +173,7 @@ class BorrowingCreateTests(BorrowingSetUp):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Borrowing.objects.count(), count_before)
 
-    def test_cannot_borrow_with_past_return_date(self):
+    def test_expired_session_marks_payment_expired(self):
         self.payload["expected_return_date"] = date.today() - timedelta(days=1)
         self.client.force_authenticate(self.user)
         count_before = Borrowing.objects.count()
@@ -179,7 +181,7 @@ class BorrowingCreateTests(BorrowingSetUp):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Borrowing.objects.count(), count_before)
 
-    def test_cannot_borrow_with_pending_payment(self):
+    def test_open_session_leaves_payment_pending(self):
         Payment.objects.create(
             borrowing=self.borrowing1,
             type=Payment.Type.PAYMENT,
@@ -190,3 +192,23 @@ class BorrowingCreateTests(BorrowingSetUp):
         res = self.client.post(reverse("borrowings:borrowing-list"), self.payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Borrowing.objects.count(), borrowings_before)
+
+
+class CheckOverdueBorrowingsTests(BorrowingSetUp):
+    @patch("borrowings.tasks.send_telegram_message")
+    def test_sends_ok_message_when_nothing_overdue(self, mock_telegram):
+        check_overdue_borrowings()
+        self.assertEqual(
+            mock_telegram.call_args.args[0], "No borrowings overdue today!"
+        )
+
+    @patch("borrowings.tasks.send_telegram_message")
+    def test_notifies_about_overdue_borrowing(self, mock_telegram):
+        self.borrowing1.borrow_date = date.today() - timedelta(days=2)
+        self.borrowing1.expected_return_date = date.today() - timedelta(days=1)
+        self.borrowing1.save()
+        check_overdue_borrowings()
+        mock_telegram.assert_called_once()
+        message = mock_telegram.call_args.args[0]
+        self.assertIn(self.book.title, message)
+        self.assertIn(self.user.email, message)
