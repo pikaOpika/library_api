@@ -23,7 +23,26 @@ from books.models import Book
 from payments.stripe_service import create_stripe_session
 from payments.models import Payment
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
+
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="is_active",
+                type=OpenApiTypes.STR,
+                description="Filter active borrowings (not returned yet). Use 'true'",
+            ),
+            OpenApiParameter(
+                name="user_id",
+                type=OpenApiTypes.INT,
+                description="Filter by user id. Admins only, ignored for others",
+            ),
+        ]
+    )
+)
 class BorrowingViewSet(
     ListModelMixin, RetrieveModelMixin, CreateModelMixin, GenericViewSet
 ):
@@ -55,6 +74,17 @@ class BorrowingViewSet(
             return queryset
         return queryset.filter(user=self.request.user)
 
+    @extend_schema(
+        summary="Return a borrowed book",
+        description=(
+            "Marks the borrowing as returned and puts the book back in "
+            "stock. If the return is late, a FINE payment is created and "
+            "its link is sent to the user. "
+            "An already returned borrowing is rejected with 400."
+        ),
+        request=None,
+        responses={200: OpenApiTypes.OBJECT},
+    )
     @action(methods=["POST"], detail=True, url_path="return")
     def borrowing_return(self, request, pk):
         borrowing = self.get_object()
