@@ -13,6 +13,10 @@ from payments.models import Payment
 
 from notifications.telegram import send_telegram_message
 
+
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +32,23 @@ class PaymentViewSet(
             return queryset
         return queryset.filter(borrowing__user=self.request.user)
 
+    @extend_schema(
+        summary="Stripe success redirect",
+        description=(
+            "Stripe redirects the browser here after payment. "
+            "The session is verified with Stripe before the payment "
+            "is marked as paid."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="session_id",
+                type=OpenApiTypes.STR,
+                required=True,
+                description="Stripe checkout session id",
+            ),
+        ],
+        responses={200: OpenApiTypes.OBJECT},
+    )
     @action(
         detail=False,
         methods=["GET"],
@@ -68,6 +89,15 @@ class PaymentViewSet(
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+    @extend_schema(
+        summary="Stripe cancel redirect",
+        description=(
+            "Stripe redirects the browser here when the user leaves the "
+            "checkout page without paying. Nothing is changed: the payment "
+            "stays unpaid and its link remains valid for 24 hours."
+        ),
+        responses={200: OpenApiTypes.OBJECT},
+    )
     @action(
         detail=False,
         methods=["GET"],
@@ -83,6 +113,16 @@ class PaymentViewSet(
             }
         )
 
+    @extend_schema(
+        summary="Stripe renews payments",
+        description=(
+            "Creates a new Stripe checkout session for a payment whose "
+            "previous session has expired, and returns the new link. "
+            "The payment goes back to PENDING. "
+            "Payments in any other status are rejected with 400."
+        ),
+        responses={200: OpenApiTypes.OBJECT},
+    )
     @action(detail=True, methods=["POST"])
     def renew(self, request, pk):
         payment = self.get_object()
